@@ -33,12 +33,16 @@ public class TransferService {
             return false; // Account(s) not found
         }
 
-        Object lock1 = getAccountLock(accountFromNumber);
-        Object lock2 = getAccountLock(accountToNumber);
+        //order in which accounts are passed to the method, locks will always be acquired in the same order.
+        String lock1Id = (accountFromNumber.compareTo(accountToNumber) < 0) ? accountFromNumber : accountToNumber;
+        String lock2Id = (accountFromNumber.compareTo(accountToNumber) < 0) ? accountToNumber : accountFromNumber;
+
+        Object lock1 = getAccountLock(lock1Id);
+        Object lock2 = getAccountLock(lock2Id);
 
         synchronized (lock1) {
             synchronized (lock2) {
-                if (canTransfer(accountFrom, accountTo, amount)) {
+                if (canTransfer(accountFrom, amount)) {
                     performTransfer(accountFrom, accountTo, amount);
                     return true; // Transfer successful
                 }
@@ -60,7 +64,7 @@ public class TransferService {
         return accountLocks.computeIfAbsent(accountNumber, k -> new Object());
     }
 
-    private boolean canTransfer(Account accountFrom, Account accountTo, BigDecimal amount) {
+    private boolean canTransfer(Account accountFrom, BigDecimal amount) {
         BigDecimal balanceFrom = accountFrom.getBalance();
         return balanceFrom.compareTo(amount) >= 0;
     }
@@ -85,9 +89,5 @@ public class TransferService {
 
     public void setNotificationService(NotificationService notificationService) {
         this.notificationService = notificationService;
-    }
-
-    public NotificationService getNotificationService() {
-        return notificationService;
     }
 }

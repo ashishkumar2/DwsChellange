@@ -7,9 +7,13 @@ import com.dws.challenge.service.TransferService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
 import java.math.BigDecimal;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -63,6 +67,40 @@ class TransferServiceTest {
         verify(accountsRepository, never()).getAccount(any());
         verify(notificationService, never()).notifyAboutTransfer(any(), anyString());
         verify(accountsRepository, never()).save(any());
+    }
+
+    //This test case simulates the scenario you described and
+    // checks that no deadlocks occur when two opposite transfers are executed in parallel.
+    @Test
+    void testTransferMoneyAndTestOppositeTransferCheck() throws InterruptedException {
+        String accountA = "A";
+        String accountB = "B";
+        BigDecimal amount = BigDecimal.valueOf(100);
+
+        // Mock accountsRepository
+        AccountsRepository accountsRepository = Mockito.mock(AccountsRepository.class);
+        Account account1 = new Account(accountA, BigDecimal.valueOf(200));
+        Account account2 = new Account(accountB, BigDecimal.valueOf(200));
+
+        Mockito.when(accountsRepository.getAccount(accountA)).thenReturn(account1);
+        Mockito.when(accountsRepository.getAccount(accountB)).thenReturn(account2);
+
+        TransferService transferService = new TransferService(accountsRepository);
+
+        // Simulate two opposite transfers in parallel
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        executorService.submit(() -> transferService.transferMoney(accountA, accountB, amount));
+        executorService.submit(() -> transferService.transferMoney(accountB, accountA, amount));
+
+        executorService.shutdown();
+
+        // Wait for both threads to finish
+        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+
+        // Check that balances are as expected
+        assertEquals(BigDecimal.valueOf(200), account1.getBalance());
+        assertEquals(BigDecimal.valueOf(200), account2.getBalance());
     }
 
     // Add more test cases for different scenarios (e.g., insufficient balance, non-existing accounts, etc.)
